@@ -16,11 +16,11 @@ to the node of ![direx.el](https://github.com/m2ym/direx-el).
 
 ### If use package.el
 
-2014/04/10 Now application
+2014/04/11 It's available by using melpa.
 
 ### If use el-get.el
 
-2014/04/10 Now application
+2014/04/11 It's available. But, master branch only.
 
 ### If use auto-install.el
 
