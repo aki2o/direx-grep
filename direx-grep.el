@@ -5,7 +5,7 @@
 ;; Author: Hiroaki Otsu <ootsuhiroaki@gmail.com>
 ;; Keywords: convenience
 ;; URL: https://github.com/aki2o/direx-grep
-;; Version: 0.0.1
+;; Version: 0.0.2
 ;; Package-Requires: ((direx "0.1alpha"))
 
 ;; This program is free software; you can redistribute it and/or modify
@@ -23,7 +23,7 @@
 
 ;;; Commentary:
 ;; 
-;; see <https://github.com/aki2o/plsense-direx/blob/master/README.md>
+;; see <https://github.com/aki2o/direx-grep/blob/master/README.md>
 
 ;;; Dependency:
 ;; 
