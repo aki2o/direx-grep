@@ -43,6 +43,7 @@ Download direx-grep.el and put it on your load-path.
 ```lisp
 (require 'direx-grep)
 (define-key direx:direx-mode-map (kbd "s") 'direx-grep:grep-item)
+(define-key direx:direx-mode-map (kbd "S") 'direx-grep:grep-item-from-root)
 (define-key direx:direx-mode-map (kbd "a") 'direx-grep:show-all-item-at-point)
 (define-key direx:direx-mode-map (kbd "A") 'direx-grep:show-all-item)
 ```
@@ -51,10 +52,15 @@ Download direx-grep.el and put it on your load-path.
 
 ### Start grep
 
-Push `direx-grep:grep-item` key in direx.el buffer.  
-The target is the shown node under the pointed node.  
-If you want to search all node, which includes the hidden node,
-M-x `direx:expand-item-recursively` before grep.  
+Push `direx-grep:grep-item` / `direx-grep:grep-item-from-root` key in direx.el buffer.  
+
+The target of `direx-grep:grep-item` is the shown node under the pointed node.  
+The target of `direx-grep:grep-item-from-root` is the root node of the pointed node.  
+
+If you want to search all node, which includes the hidden node, do the one of the following.  
+
+-   Set non-nil to `direx-grep:ensure-greped-tree` (in default)
+-   M-x `direx:expand-item-recursively` before grep.
 
 ### Toggle to use migemo.el
 

@@ -5,7 +5,7 @@
 ;; Author: Hiroaki Otsu <ootsuhiroaki@gmail.com>
 ;; Keywords: convenience
 ;; URL: https://github.com/aki2o/direx-grep
-;; Version: 0.0.2
+;; Version: 0.1.0
 ;; Package-Requires: ((direx "0.1alpha"))
 
 ;; This program is free software; you can redistribute it and/or modify
@@ -40,6 +40,7 @@
 ;; 
 ;; ;; Key Binding
 ;; (define-key direx:direx-mode-map (kbd "s") 'direx-grep:grep-item)
+;; (define-key direx:direx-mode-map (kbd "S") 'direx-grep:grep-item-from-root)
 ;; (define-key direx:direx-mode-map (kbd "a") 'direx-grep:show-all-item-at-point)
 ;; (define-key direx:direx-mode-map (kbd "A") 'direx-grep:show-all-item)
 ;; 
@@ -53,6 +54,8 @@
 ;; Whether to use migemo.el in `direx-grep:grep-item'.
 ;; `direx-grep:toggle-use-migemo-key'
 ;; Keystroke for `direx-grep:toggle-use-migemo' in `direx-grep:grep-item'.
+;; `direx-grep:ensure-greped-tree'
+;; Whether to ensure the children of the target node before grep.
 ;; 
 ;;  *** END auto-documentation
 
@@ -65,6 +68,8 @@
 ;; Toggle the value of `direx-grep:use-migemo'.
 ;; `direx-grep:grep-item'
 ;; Grep node of direx.el using incremental search like anything.el/helm.el.
+;; `direx-grep:grep-item-from-root'
+;; Do `direx-grep:grep-item' using the root of pointed item.
 ;; `direx-grep:show-all-item-at-point'
 ;; Show all item under pointed item.
 ;; `direx-grep:show-all-item'
@@ -100,6 +105,11 @@ Also, you are able to toggle this value by pushing `direx-grep:toggle-use-migemo
 (defcustom direx-grep:toggle-use-migemo-key "C-t"
   "Keystroke for `direx-grep:toggle-use-migemo' in `direx-grep:grep-item'."
   :type 'string
+  :group 'direx-grep)
+
+(defcustom direx-grep:ensure-greped-tree t
+  "Whether to ensure the children of the target node before grep."
+  :type 'boolean
   :group 'direx-grep)
 
 
@@ -139,14 +149,14 @@ Also, you are able to toggle this value by pushing `direx-grep:toggle-use-migemo
     (when (and do-update
                direx-grep--current-item)
       (setq direx-grep--last-input-value iptvalue)
-      (direx:item-show-children direx-grep--current-item)
+      (direx-grep--turn-back-visibility direx-grep--current-item t)
       (when re-list
         (direx-grep--do-grep-recursively direx-grep--current-item re-list)))))
 
 (defun direx-grep--do-grep-recursively (item re-list &optional grep-myself)
-  (let* ((openednode (and (not (direx:item-leaf-p item))
-                          (direx:item-open item)))
-         (leaffound (when openednode
+  (let* ((isnode (not (direx:item-leaf-p item)))
+         (openednode (and isnode (direx:item-open item)))
+         (leaffound (when isnode
                       (loop with found = nil
                             for child in (direx:item-children item)
                             if (direx-grep--do-grep-recursively child re-list t)
@@ -154,19 +164,38 @@ Also, you are able to toggle this value by pushing `direx-grep:toggle-use-migemo
                             finally return found)))
          (ret (cond
                ((not grep-myself) t)
-               (leaffound         t)
+               (leaffound         (direx:item-show item)
+                                  t)
                (t                 (loop with selfnm = (direx:tree-name (direx:item-tree item))
                                         for re in re-list
                                         if (not (string-match re selfnm))
                                         return (progn (direx:item-hide item)
                                                       nil)
-                                        finally return t)))))
+                                        finally return (progn (direx:item-show item)
+                                                              t))))))
     (when (and openednode
                (not leaffound)
                ret)
       ;; If any leaf is not match but myself is match, show all leaf.
       (direx:item-show-children item))
     ret))
+
+(defun direx-grep--turn-back-visibility (item opened)
+  (if opened
+      (direx:item-show item)
+    (direx:item-hide item))
+  (when (not (direx:item-leaf-p item))
+    (loop with opened = (and opened (direx:item-open item))
+          for child in (direx:item-children item)
+          do (direx-grep--turn-back-visibility child opened))))
+
+(defun direx-grep--ensure-greped-tree (item)
+  (when (not (direx:item-leaf-p item))
+    (when (not (direx:item-open item))
+      (direx:item-ensure-children item)
+      (direx:item-hide-children item))
+    (dolist (child (direx:item-children item))
+      (direx-grep--ensure-greped-tree child))))
 
 (defvar direx-grep:grep-map nil)
 (defun direx-grep--make-grep-map ()
@@ -187,7 +216,7 @@ Also, you are able to toggle this value by pushing `direx-grep:toggle-use-migemo
   (direx-grep--stop-grep)
   (unwind-protect
       (direx:awhen direx-grep--current-item
-        (direx:item-show-children it))
+        (direx-grep--turn-back-visibility it t))
     (setq direx-grep--current-item nil)
     (abort-recursive-edit)))
 
@@ -199,11 +228,17 @@ Also, you are able to toggle this value by pushing `direx-grep:toggle-use-migemo
            (setq direx-grep--current-use-migemo
                  (setq direx-grep:use-migemo (not direx-grep:use-migemo)))))
 
-(defun direx-grep:grep-item ()
-  "Grep node of direx.el using incremental search like anything.el/helm.el."
+(defun direx-grep:grep-item (&optional item)
+  "Grep node of direx.el using incremental search like anything.el/helm.el.
+
+If `direx-grep:ensure-greped-tree' is non-nil,
+do `direx:item-ensure-children' to ITEM without visibility.
+You can find the hidden and not ensured yet item by this action but that may cause slowness."
   (interactive)
   (setq direx-grep--current-use-migemo direx-grep:use-migemo)
-  (setq direx-grep--current-item (direx:item-at-point!))
+  (setq direx-grep--current-item (or item (direx:item-at-point!)))
+  (when direx-grep:ensure-greped-tree
+    (direx-grep--ensure-greped-tree direx-grep--current-item))
   (let* ((mgmmsg (when (and direx-grep--current-use-migemo
                             (featurep 'migemo))
                    "[MIGEMO] "))
@@ -215,6 +250,11 @@ Also, you are able to toggle this value by pushing `direx-grep:toggle-use-migemo
       (direx-grep--stop-grep)
       (setq direx-grep--current-item nil))))
 
+(defun direx-grep:grep-item-from-root ()
+  "Do `direx-grep:grep-item' using the root of pointed item."
+  (interactive)
+  (direx-grep:grep-item (direx:item-root (direx:item-at-point!))))
+
 (defun direx-grep:show-all-item-at-point ()
   "Show all item under pointed item."
   (interactive)
@@ -224,8 +264,7 @@ Also, you are able to toggle this value by pushing `direx-grep:toggle-use-migemo
   "Show all item in current buffer."
   (interactive)
   (setq item (or item direx:root-item))
-  (direx:item-show item)
-  (direx:item-show-children item))
+  (direx-grep--turn-back-visibility item t))
 
 
 (provide 'direx-grep)
